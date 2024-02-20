@@ -47,6 +47,6 @@ class PlayerChoiceView(View):
     async def interaction_check(self, interaction):
         if interaction.user == self.ctx.author:
             return True
-        await interaction.response.send_message("You can't do that, as the original command was issued by someone wlse", ephemeral=True)
+        await interaction.response.send_message("You can't do that, as the original command was issued by someone else", ephemeral=True)
         return False
 

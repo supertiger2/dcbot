@@ -126,6 +126,15 @@ async def deltastat(ctx, season, playername, plid, beg, end):
         lossesR = 0
     else:
         lossesR = lossesR[0]["lll"]
+    # draws
+    drawsR = list(mongoclient["b2"]["matches"].aggregate([
+        {"$match": {"season": season, "winner": 'draw', "$or": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plid}], "date": {"$lte": datetime.datetime.utcfromtimestamp(end+1), "$gte": datetime.datetime.utcfromtimestamp(beg-1)}}},
+        {"$group": {"_id": 1, "ddd": {"$sum": 1}}}
+    ]))
+    if drawsR == []:
+        drawsR = 0
+    else:
+        drawsR = drawsR[0]["ddd"]
     # send some info about latest match too
     try:
         lm = mongoclient["b2"]["matches"].find_one({"season": season, "$or": [{"winner": plid}, {"loser": plid}]}, sort=[("date", -1)])
@@ -141,7 +150,7 @@ async def deltastat(ctx, season, playername, plid, beg, end):
     except:
         matchstring = ""
     # generate image
-    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, playtime, lbsizeold, getSeasonN())
+    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsizeold, getSeasonN())
     with io.BytesIO() as imbytes:
         im.save(imbytes, 'PNG')
         imbytes.seek(0)
