@@ -156,6 +156,20 @@ def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsize
     img = sctext(img, (850, 755, 1717, 892), "font.ttf", "#"+str(oldplace)+u" 🡆 #"+str(newstat["place"]), 180, (255, 255, 255), 9, (0, 0, 0))
     return img
 
+def genVs(player, oponent, winsp, winso, draws, lbsize, season):
+    img = imgcache.getimg("star_background_horizontal", "misc").copy()
+    tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    tmp.paste(genLBEImage(player, lbsize, season), (30, 30))
+    img = Image.alpha_composite(img, tmp)
+    tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    tmp.paste(genLBEImage(oponent, lbsize, season), (30, 252))
+    img = Image.alpha_composite(img, tmp)
+    img = sctext_ncx(img, (1929, 30, 2160, 232), "font.ttf", str(winsp), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext_ncx(img, (1929, 252, 2160, 454), "font.ttf", str(winso), 180, (255, 255, 255), 9, (0, 0, 0))
+    if draws > 0:
+        img = sctext_ncx(img, (2165, 175, 2240, 309), "font.ttf", str(draws), 110, (255, 255, 255), 6, (0, 0, 0))
+    return img
+
 def genMiniLB(lblist, lbsize, season):
     img = Image.new("RGBA", (1902, 245*(len(lblist))), (255, 255, 255, 0))
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
