@@ -61,8 +61,8 @@ class SearchInput(Modal):
         await interaction.response.defer()
 
 class LbViewCommon(View):
-    def __init__(self, ctx, lblist, lbsize, mode, seasonN, chunksize):
-        super().__init__(timeout=300)
+    def __init__(self, ctx, lblist, lbsize, mode, seasonN, chunksize, mingames):
+        super().__init__(timeout=360)
         self.ctx = ctx
         self.lblist = lblist
         self.plid = None
@@ -70,6 +70,7 @@ class LbViewCommon(View):
         self.searchwarning = False
         self.mode = mode
         self.seasonN = seasonN
+        self.mingames = mingames
         self.chunksize = chunksize
         self.lbsplit = splitlb(lblist, chunksize)
         self.currentIndex = 0
@@ -187,5 +188,6 @@ class PlayerChooserViewScroll(LbViewCommonScroll):
 class LbView(LbViewCommonScroll):
     async def init(self):
         await self.updateImage(0)
-        await self.ctx.interaction.edit_original_response(content=f"{self.mode} leaderboard ({self.mingames} min games) for season {self.seasonN} (with {len(self.lblist)} players)")
+        self.infostring = f"{self.mode} leaderboard ({self.mingames} min games) for season {self.seasonN} (with {len(self.lblist)} players)"
+        await self.ctx.interaction.edit_original_response(content=self.infostring)
 

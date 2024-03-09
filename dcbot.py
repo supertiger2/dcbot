@@ -63,9 +63,9 @@ async def choosePlayer(ctx, season, playername):
         return lblist[0]["plid"]
     # dont use the view with buttons when list is short enough
     if len(lblist) <= 8:
-        view = PlayerChooserView(ctx, lblist, lbsize, "score", getSeasonN(), 8)
+        view = PlayerChooserView(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0)
     else:
-        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", getSeasonN(), 8)
+        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response("Timed out!", view=None)
@@ -329,10 +329,10 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
     if len(lblist) == 0:
         await ctx.interaction.edit_original_response(content=f"The selected leaderboard ({mode} with {min_games} min games) is empty, you can try selecting lower min games")
         return
-    view = LbView(ctx, lblist, lbsize, mode, getSeasonN(), 8)
+    view = LbView(ctx, lblist, lbsize, mode, getSeasonN(), 8, min_games)
     await view.init()
     if await view.wait():
-        await ctx.interaction.edit_original_response(content="Timed out!", view=None)
+        await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
 
 @bot.slash_command(name="link", description="Links B2 account to discord so you can type less", guild_ids=cmdguilds)
 async def link(ctx, playername: discord.Option(str, "playername", required = True, autocomplete=autocompletePname)):
