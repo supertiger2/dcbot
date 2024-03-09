@@ -3,13 +3,15 @@ import os
 
 from PIL import Image, ImageDraw, ImageFont
 
+import imagegen.fontcache as fontcache
+
 def sctext(img, rect, fontname, text, fontsize, text_color, outline_size, outline_color):
     #fontsize = min(fontsize, rect[3]-rect[1])
-    font = ImageFont.truetype(os.getenv("IMG_DIR")+fontname, fontsize)
+    font = fontcache.getfont(fontname, fontsize)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
     tmpd = ImageDraw.Draw(tmp)
     if tmpd.textlength(text, font=font) > rect[2]-rect[0]:
-        font = ImageFont.truetype(os.getenv("IMG_DIR")+fontname, int(((rect[2]-rect[0])/tmpd.textlength(text, font=font))*fontsize))
+        font = fontcache.getfont(fontname, int(((rect[2]-rect[0])/tmpd.textlength(text, font=font))*fontsize))
     tbox = tmpd.textbbox((0, 0), text, font=font)
     tbox = (tbox[2], tbox[3])
     tsx = (((rect[2]-rect[0])-tbox[0])//2)+rect[0]
@@ -20,11 +22,11 @@ def sctext(img, rect, fontname, text, fontsize, text_color, outline_size, outlin
 
 def sctext_ncx(img, rect, fontname, text, fontsize, text_color, outline_size, outline_color):
     #fontsize = min(fontsize, rect[3]-rect[1])
-    font = ImageFont.truetype(os.getenv("IMG_DIR")+fontname, fontsize)
+    font = fontcache.getfont(fontname, fontsize)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
     tmpd = ImageDraw.Draw(tmp)
     if tmpd.textlength(text, font=font) > rect[2]-rect[0]:
-        font = ImageFont.truetype(os.getenv("IMG_DIR")+fontname, int(((rect[2]-rect[0])/tmpd.textlength(text, font=font))*fontsize))
+        font = fontcache.getfont(fontname, int(((rect[2]-rect[0])/tmpd.textlength(text, font=font))*fontsize))
     tbox = tmpd.textbbox((0, 0), text, font=font)
     tbox = (tbox[2], tbox[3])
     tsx = rect[0]

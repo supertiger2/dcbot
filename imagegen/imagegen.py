@@ -4,6 +4,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 import imagegen.imgcache as imgcache
+import imagegen.fontcache as fontcache
 import imagegen.medalutil as medalutil
 
 from imagegen.textutil import *
@@ -27,7 +28,7 @@ def getRoman(number):
 
 def seasonMedal(url, season):
     roman = getRoman(season)
-    font = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", 30)
+    font = fontcache.getfont("font.ttf", 30)
     img = imgcache.getimg(url, "medal").copy()
     img2 = Image.new("RGBA", img.size, (255, 255, 255, 0))
     imgd = ImageDraw.Draw(img)
@@ -48,8 +49,8 @@ def genProfileImage(profile):
     pfpim.paste(pfp, (14+15, 15))
     img = Image.alpha_composite(img, pfpim)
     # add name and score
-    font = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", 100)
-    elofont = ImageFont.truetype(os.getenv("IMG_DIR")+"elofont.ttf", 66)
+    font = fontcache.getfont("font.ttf", 100)
+    elofont = fontcache.getfont("elofont.ttf", 66)
     tim = Image.new("RGBA", img.size, (255, 255, 255, 0))
     tim_d = ImageDraw.Draw(tim)
     text_color = (255, 255, 255, 255)
@@ -59,7 +60,7 @@ def genProfileImage(profile):
         text_color = (252, 164, 9, 255)
         outline_color = (103, 33, 12, 255)
     if tim_d.textlength(profile["body"]["displayName"], font=font) > 831:
-            font = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", int((831/tim_d.textlength(profile["body"]["displayName"], font=font))*100))
+            font = fontcache.getfont("font.ttf", int((831/tim_d.textlength(profile["body"]["displayName"], font=font))*100))
     tim_d.text((196, 25), profile["body"]["displayName"], font=font, fill=text_color, stroke_width=6, stroke_fill=outline_color)
     img = Image.alpha_composite(img, tim)
     # add medals
@@ -109,16 +110,16 @@ def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsize
         elop_color = (240, 8, 37)
         elop_ocolor = (92, 4, 6, 255)
     rect = (65, 401, 496, 538)
-    font = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", 180)
+    font = fontcache.getfont("font.ttf", 180)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
     tmpd = ImageDraw.Draw(tmp)
     if tmpd.textlength(elop+delo, font=font) > rect[2]-rect[0]:
-        font = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", int(((rect[2]-rect[0])/tmpd.textlength(elop+delo, font=font))*180))
+        font = fontcache.getfont("font.ttf", int(((rect[2]-rect[0])/tmpd.textlength(elop+delo, font=font))*180))
     tbox = tmpd.textbbox((0, 0), elop+delo, font=font)
     tbox = (tbox[2], tbox[3])
     tsx = (((rect[2]-rect[0])-tbox[0])//2)+rect[0]
     tsy = (((rect[3]-rect[1])-tbox[1])//2)+rect[1]
-    efont = ImageFont.truetype(os.getenv("IMG_DIR")+"font.ttf", 180)
+    efont = fontcache.getfont("font.ttf", 180)
     tmpd.text((tsx, tsy), elop, font=efont, fill=elop_color, stroke_width=11, stroke_fill=elop_ocolor)
     tsx += tmpd.textlength(elop, font=font)
     tmpd.text((tsx, tsy), delo, font=font, fill=(255, 255, 255), stroke_width=9, stroke_fill=(0, 0, 0))
@@ -170,12 +171,32 @@ def genVs(player, oponent, winsp, winso, draws, lbsize, season):
         img = sctext_ncx(img, (2165, 175, 2240, 309), "font.ttf", str(draws), 110, (255, 255, 255), 6, (0, 0, 0))
     return img
 
-def genMiniLB(lblist, lbsize, season):
+def genChooserLB(lblist, lbsize, season):
     img = Image.new("RGBA", (1902, 245*(len(lblist))), (255, 255, 255, 0))
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
     nexty = 44
     for i in lblist:
         tmp.paste(genLBEImage(i, lbsize, season), (26, nexty))
+        nexty += 245
+    img = Image.alpha_composite(img, tmp)
+    return img
+
+def genMiniLB(lblist, mode):
+    img = Image.new("RGBA", (2252, 245*(len(lblist))), (255, 255, 255, 0))
+    tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    nexty = 44
+    for i in lblist:
+        tmp.paste(genProfileImage(i), (26+447, nexty))
+        tmp = sctext(tmp, (36, nexty, 417, nexty+202), "font.ttf", '# '+str(i["__lbplace"]), 150, (255, 255, 255), 9, (0, 0, 0))
+        if mode == 'winrate':
+            text = str(round(i["__lbprop"]*100))+'%'
+        elif mode == 'w/l':
+            text = str(round(i["__lbprop"], 2))
+        elif mode == 'playtime':
+            text = time_round(i["__lbprop"])
+        else:
+            text = str(i["__lbprop"])
+        tmp = sctext_ncx(tmp, (1936, nexty, 2252, nexty+202), "font.ttf", text, 180, (255, 255, 255), 9, (0, 0, 0))
         nexty += 245
     img = Image.alpha_composite(img, tmp)
     return img
