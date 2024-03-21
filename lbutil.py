@@ -16,7 +16,7 @@ def getlbprop(mode, plrentry):
     if mode == 'playtime':
         return plrentry['pt']
 
-def getlb(mongoclient, season, mode, mingames, lb):
+def getlb(mongoclient, season, mode, mingames, minscore, lb):
     matches = list(mongoclient['b2']['matches'].find({'season': season}))
     playermap = []
     plidtoint = {}
@@ -46,6 +46,8 @@ def getlb(mongoclient, season, mode, mingames, lb):
         if (plrentry['w']+plrentry['l']+plrentry['d']) < mingames:
             continue
         tmp = mongoclient["b2"]["players"].find({"plid": i["profile"], "season": season}).sort("date", -1).limit(1)[0]
+        if (tmp['score']) < minscore:
+            continue
         tmp["__lbprop"] = getlbprop(mode, plrentry)
         tmp["__lbsort"] = tmp["__lbprop"]
         lblist.append(tmp)
