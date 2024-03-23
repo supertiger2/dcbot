@@ -101,6 +101,23 @@ async def deltastat(ctx, season, playername, plid, beg, end):
     if lbsizeold == None:
         lbsizeold = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", 1)])
     lbsizeold = lbsizeold["lbsize"]
+    matchlist = list(mongoclient["b2"]["matches"].aggregate([
+        {"$match": {"season": season, "$or": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plid}], "date": {"$lte": datetime.datetime.utcfromtimestamp(end+1), "$gte": datetime.datetime.utcfromtimestamp(beg-1)}}}
+    ]))
+    elodecay = 0
+    if len(matchlist) > 0:
+        matchlist = sorted(matchlist, key=lambda d: d["date"])
+        for i in range(1, len(matchlist)):
+            t = matchlist[i]["date"].astimezone(datetime.timezone.utc).timestamp() - matchlist[i-1]["date"].astimezone(datetime.timezone.utc).timestamp()
+            elodecay += max(0, 5*(((t/3600)-72)//2))
+        t = end - matchlist[len(matchlist)-1]["date"].astimezone(datetime.timezone.utc).timestamp()
+        elodecay += max(0, 5*(((t/3600)-72)//2))
+        begmatch = mongoclient["b2"]["matches"].find_one({"date": {"$lte": datetime.datetime.utcfromtimestamp(beg-1)}})
+        if begmatch != None:
+            t = matchlist[0]["date"].astimezone(datetime.timezone.utc).timestamp() - begmatch["date"].astimezone(datetime.timezone.utc).timestamp()
+            if t < 3600*2:
+                t = matchlist[0]["date"].astimezone(datetime.timezone.utc).timestamp() - beg
+                elodecay += max(0, 5*(((t/3600)-72)//2))
     playtime = list(mongoclient["b2"]["matches"].aggregate([
         {"$match": {"season": season, "$or": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plid}], "date": {"$lte": datetime.datetime.utcfromtimestamp(end+1), "$gte": datetime.datetime.utcfromtimestamp(beg-1)}}},
         {"$group": {"_id": 1, "playtime": {"$sum": "$body.duration"}}}
@@ -153,7 +170,7 @@ async def deltastat(ctx, season, playername, plid, beg, end):
     except:
         matchstring = ""
     # generate image
-    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsizeold, getSeasonN())
+    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, playtime, lbsizeold, getSeasonN())
     with io.BytesIO() as imbytes:
         im.save(imbytes, 'PNG')
         imbytes.seek(0)

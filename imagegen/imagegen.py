@@ -86,7 +86,7 @@ def genLBEImage(profile, lbsize, season):
     img = sctext_ncx(img, (166, 0, 362, 201), "font.ttf", str(profile["place"]), 150, (255, 255, 255), 8, (0, 0, 0))
     return img
 
-def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsize, season):
+def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, playtime, lbsize, season):
     img = imgcache.getimg("star_background", "misc").copy()
     profimg = genProfileImage(newstat)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
@@ -126,18 +126,18 @@ def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsize
     img = Image.alpha_composite(img, tmp)
     avgain = 0
     if (winsR) != 0:
-        avgain = (105*lossesR+(newstat["score"]-oldstat["score"]))/(winsR+lossesR)
+        avgain = (105*lossesR+(newstat["score"]-oldstat["score"]+elodecay))/(winsR+lossesR)
     avloss = 0
     if (lossesR) != 0:
-        avloss = (105*winsR-(newstat["score"]-oldstat["score"]))/(winsR+lossesR)
+        avloss = (105*winsR-(newstat["score"]-oldstat["score"]+elodecay))/(winsR+lossesR)
     winrate = 0
+    wrc = (255, 255, 255)
     if (winsR+lossesR+drawsR) != 0:
         winrate = winsR/(winsR+lossesR+drawsR)
-    wrc = (255, 255, 255)
-    if winrate > 0.5:
-        wrc = (160, 255, 160)
-    elif winrate < 0.5:
-        wrc = (255, 160, 160)
+        if winrate > 0.5:
+            wrc = (160, 255, 160)
+        elif winrate < 0.5:
+            wrc = (255, 160, 160)
     # the rest
     img = sctext(img, (619, 315, 884, 373), "font.ttf", "Wins:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (619, 401, 884, 538), "font.ttf", str(winsR), 180, (255, 255, 255), 9, (0, 0, 0))
@@ -146,8 +146,8 @@ def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, playtime, lbsize
     img = sctext(img, (1441, 315, 1731, 373), "font.ttf", "WR:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (1461, 401, 1771, 538), "font.ttf", str(int(round(winrate*100, 1)))+'%', 180, wrc, 9, (0, 0, 0))
     img = sctext(img, (1441, 555, 1731, 615), "font.ttf", "W/L: "+str(round(winsR/max(1, lossesR), 2)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (512, 555, 991, 615), "font.ttf", "Avg gain: "+str(round(avgain, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (914, 555, 1393, 615), "font.ttf", "Avg loss: "+str(round(avloss, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (550, 555, 953, 615), "font.ttf", "Avg gain: "+str(round(avgain, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (952, 555, 1355, 615), "font.ttf", "Avg loss: "+str(round(avloss, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (97, 666, 608, 727), "font.ttf", "Playtime:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (97, 755, 608, 892), "font.ttf", time_round(playtime), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext(img, (850, 666, 1717, 727), "font.ttf", "Places gain:", 62, (255, 255, 255), 6, (0, 0, 0))
