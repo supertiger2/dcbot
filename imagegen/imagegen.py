@@ -165,10 +165,20 @@ def genVs(player, oponent, winsp, winso, draws, lbsize, season):
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
     tmp.paste(genLBEImage(oponent, lbsize, season), (30, 252))
     img = Image.alpha_composite(img, tmp)
+    wrcp = (255, 255, 255)
+    wrco = (255, 255, 255)
+    if winsp > winso:
+        wrcp = (160, 255, 160)
+        wrco = (255, 160, 160)
+    if winsp < winso:
+        wrco = (160, 255, 160)
+        wrcp = (255, 160, 160)
     img = sctext_ncx(img, (1929, 30, 2160, 232), "font.ttf", str(winsp), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext_ncx(img, (1929, 252, 2160, 454), "font.ttf", str(winso), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext_ncx(img, (2182, 60, 2353, 130), "font.ttf", str(round(winsp/max(1, winsp+winso)*100))+'%', 105, wrcp, 6, (0, 0, 0))
+    img = sctext_ncx(img, (2182, 343, 2353, 423), "font.ttf", str(round(winso/max(1, winsp+winso)*100))+'%', 105, wrco, 6, (0, 0, 0))
     if draws > 0:
-        img = sctext_ncx(img, (2165, 175, 2240, 309), "font.ttf", str(draws), 110, (255, 255, 255), 6, (0, 0, 0))
+        img = sctext_ncx(img, (2175, 165, 2250, 319), "font.ttf", str(draws), 125, (255, 255, 255), 6, (0, 0, 0))
     return img
 
 def genChooserLB(lblist, lbsize, season):

@@ -11,7 +11,7 @@ from PIL import Image
 
 import imagegen.imagegen as imagegen
 import lbutil
-from playerspecifier import PlayerChooserView, LbView
+from playerspecifier import PlayerChooserView, PlayerChooserViewScroll, LbView
 
 if __name__ == "__main__":
     load_dotenv()
@@ -63,9 +63,9 @@ async def choosePlayer(ctx, season, playername):
         return lblist[0]["plid"]
     # dont use the view with buttons when list is short enough
     if len(lblist) <= 8:
-        view = PlayerChooserView(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0)
+        view = PlayerChooserView(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0, -2)
     else:
-        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0)
+        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0, -2)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response("Timed out!", view=None)
@@ -224,7 +224,20 @@ async def daily(ctx, playername: discord.Option(str, "playername", required = Fa
     beg = end - 60*60*24*7
     await deltastat(ctx, season, playername, plid, beg, end)
 
-@bot.slash_command(name="seasonal", description="Show stat difference between now and one day ago", guild_ids=cmdguilds)
+@bot.slash_command(name="delta", description="Show stat difference between beg and end (unix timestamps)", guild_ids=cmdguilds)
+async def delta(ctx, beg: discord.Option(float, "beg", required = True), end: discord.Option(float, "end", required = True), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+    await ctx.defer(ephemeral=False)
+    season = getSeason()
+    plid = None
+    if playername == None:
+        plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
+        if plid == None:
+            await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
+            return
+        plid = plid["b2plid"]
+    await deltastat(ctx, season, playername, plid, beg, end)
+
+@bot.slash_command(name="seasonal", description="Show stats for this season", guild_ids=cmdguilds)
 async def seasonal(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
     await ctx.defer(ephemeral=False)
     season = getSeason()
@@ -301,10 +314,12 @@ async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autoc
         return True
 
 @bot.slash_command(name="lb", description="", guild_ids=cmdguilds)
-async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'losses', 'winrate', 'w/l', 'playtime', 'games played'], required=True), min_games: discord.Option(int, "min games", required=False)):
+async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'losses', 'winrate', 'w/l', 'playtime', 'games played'], required=True), min_games: discord.Option(int, "min games", required=False), min_score: discord.Option(int, "min score", required=False)):
     await ctx.defer()
     if min_games == None:
         min_games = 0
+    if min_score == None:
+        min_score = -2
     season = getSeason()
     lb = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
     if lb == None:
@@ -317,7 +332,7 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
             lblist.append(mongoclient["b2"]["players"].find({"plid": i["profile"], "season": season}).sort("date", -1).limit(1)[0])
         if min_games > 0:
             newlist = []
-            mglist = lbutil.getlb(mongoclient, season, "wins", min_games, lb)
+            mglist = lbutil.getlb(mongoclient, season, "wins", min_games, min_score, lb)
             for i in range(len(mglist)):
                 mglist[i] = mglist[i]["plid"]
             for i in lblist:
@@ -325,11 +340,11 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
                     newlist.append(i)
             lblist = newlist
     else:
-        lblist = lbutil.getlb(mongoclient, season, mode, min_games, lb)
+        lblist = lbutil.getlb(mongoclient, season, mode, min_games, min_score, lb)
     if len(lblist) == 0:
         await ctx.interaction.edit_original_response(content=f"The selected leaderboard ({mode} with {min_games} min games) is empty, you can try selecting lower min games")
         return
-    view = LbView(ctx, lblist, lbsize, mode, getSeasonN(), 8, min_games)
+    view = LbView(ctx, lblist, lbsize, mode, getSeasonN(), 8, min_games, min_score)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
@@ -367,6 +382,21 @@ async def unlink(ctx):
         await ctx.interaction.edit_original_response(content="You have been succesfully unlinked")
     else:
         await ctx.interaction.edit_original_response(content="Something went wrong while unlinking")
+
+@bot.slash_command(name="b2lol", description="get link for player's b2.lol page", guild_ids=cmdguilds)
+async def b2lol_link(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+    await ctx.defer(ephemeral=False)
+    season = getSeason()
+    plid = None
+    if playername == None:
+        plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
+        if plid == None:
+            await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
+            return
+        plid = plid["b2plid"]
+    else:
+        plid = await choosePlayer(ctx, season, playername)
+    await ctx.interaction.edit_original_response(content=f"https://b2.lol/playerInfo/playerInfo.html?{plid}")
 
 @bot.slash_command(name="rpr", description="render profile image", guild_ids=cmdguilds)
 async def rpr(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):

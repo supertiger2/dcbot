@@ -62,7 +62,7 @@ class SearchInput(Modal):
 
 class LbViewCommon(View):
     def __init__(self, ctx, lblist, lbsize, mode, seasonN, chunksize, mingames, minscore):
-        super().__init__(timeout=360)
+        super().__init__(timeout=600)
         self.ctx = ctx
         self.lblist = lblist
         self.plid = None
