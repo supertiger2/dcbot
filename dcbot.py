@@ -15,6 +15,9 @@ from playerspecifier import PlayerChooserView, PlayerChooserViewScroll, LbView
 
 if __name__ == "__main__":
     load_dotenv()
+    seasonmap = {'Season 17': 'lrq7y3q3', 'Season 18': 'lteij7gk'}
+    seasonNmap = {'lrq7y3q3': 17, 'lteij7gk': 18}
+    seasonlist = list(seasonmap.keys())
     guild = os.getenv("GUILD")
     global cmdguilds
     cmdguilds = []
@@ -31,7 +34,7 @@ def getSeasonN():
     seasonN = mongoclient["sutil"]["sutil"].find_one({"_id": 0})["seasonN"]
     return seasonN
 
-async def choosePlayer(ctx, season, playername):
+async def choosePlayer(ctx, season, seasonN, playername):
     lb = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
     if lb == None:
         await ctx.followup.send(f"Error occured while getting a leaderboard (wait a few minutes and try again)")
@@ -63,21 +66,21 @@ async def choosePlayer(ctx, season, playername):
         return lblist[0]["plid"]
     # dont use the view with buttons when list is short enough
     if len(lblist) <= 8:
-        view = PlayerChooserView(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0, -2)
+        view = PlayerChooserView(ctx, lblist, lbsize, "score", seasonN, 8, 0, -2)
     else:
-        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", getSeasonN(), 8, 0, -2)
+        view = PlayerChooserViewScroll(ctx, lblist, lbsize, "score", seasonN, 8, 0, -2)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response("Timed out!", view=None)
         return None
     return view.plid
 
-async def deltastat(ctx, season, playername, plid, beg, end):
+async def deltastat(ctx, season, seasonN, playername, plid, beg, end):
     if (beg > end):
         await ctx.followup.send("Time interval must begin earlier then it ends")
         return False
     if plid == None:
-        plid = await choosePlayer(ctx, season, playername)
+        plid = await choosePlayer(ctx, season, seasonN, playername)
     if plid == None:
         return False
     lbsize = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
@@ -96,8 +99,8 @@ async def deltastat(ctx, season, playername, plid, beg, end):
         return False
     newstat = mongoclient["b2"]["players"].find_one({"plid": plid, "season": season, "date": {"$lte": datetime.datetime.utcfromtimestamp(end)}}, sort=[("date", -1)])
     lbsizeold = mongoclient["b2"]["lb"].find_one({"season": season, "date": {"$lte": datetime.datetime.utcfromtimestamp(end)}}, sort=[("date", -1)])
-    beg = oldstat["date"].astimezone(datetime.timezone.utc).timestamp()
-    end = newstat["date"].astimezone(datetime.timezone.utc).timestamp()
+    #beg = oldstat["date"].astimezone(datetime.timezone.utc).timestamp()
+    #end = newstat["date"].astimezone(datetime.timezone.utc).timestamp()
     if lbsizeold == None:
         lbsizeold = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", 1)])
     lbsizeold = lbsizeold["lbsize"]
@@ -170,7 +173,7 @@ async def deltastat(ctx, season, playername, plid, beg, end):
     except:
         matchstring = ""
     # generate image
-    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, playtime, lbsizeold, getSeasonN())
+    im = imagegen.genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, playtime, lbsizeold, seasonN)
     with io.BytesIO() as imbytes:
         im.save(imbytes, 'PNG')
         imbytes.seek(0)
@@ -179,7 +182,15 @@ async def deltastat(ctx, season, playername, plid, beg, end):
         return True
 
 async def autocompletePname(ctx: discord.AutocompleteContext):
-    possible = list(mongoclient["b2"]["lb"].find_one({}, sort=[("date", -1)])["namelist"])
+    try:
+        season = ctx.options["season"]
+    except:
+        season = None
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    possible = list(mongoclient["b2"]["lb"].find_one({'season': season}, sort=[("date", -1)])["namelist"])
     matched = []
     for i in possible:
         if ctx.options["playername"].lower() in i.lower() and len(matched) < 25:
@@ -187,7 +198,15 @@ async def autocompletePname(ctx: discord.AutocompleteContext):
     return matched
 
 async def autocompletePname_oponent(ctx: discord.AutocompleteContext):
-    possible = list(mongoclient["b2"]["lb"].find_one({}, sort=[("date", -1)])["namelist"])
+    try:
+        season = ctx.options["season"]
+    except:
+        season = None
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    possible = list(mongoclient["b2"]["lb"].find_one({'season': season}, sort=[("date", -1)])["namelist"])
     matched = []
     for i in possible:
         if ctx.options["oponent"].lower() in i.lower() and len(matched) < 25:
@@ -207,7 +226,7 @@ async def ndaily(ctx, n: discord.Option(float, "n", required = True), playername
         plid = plid["b2plid"]
     end = time.time()
     beg = end - 60*60*24*n
-    await deltastat(ctx, season, playername, plid, beg, end)
+    await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
 
 @bot.slash_command(name="daily", description="Show stat difference between now and one day ago", guild_ids=cmdguilds)
 async def daily(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
@@ -223,7 +242,7 @@ async def daily(ctx, playername: discord.Option(str, "playername", required = Fa
     end = time.time()
     #beg = time.time()
     beg = end - 60*60*24
-    await deltastat(ctx, season, playername, plid, beg, end)
+    await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
 
 @bot.slash_command(name="weekly", description="Show stat difference between now and one week ago", guild_ids=cmdguilds)
 async def daily(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
@@ -239,12 +258,16 @@ async def daily(ctx, playername: discord.Option(str, "playername", required = Fa
     end = time.time()
     #beg = time.time()
     beg = end - 60*60*24*7
-    await deltastat(ctx, season, playername, plid, beg, end)
+    await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
 
 @bot.slash_command(name="delta", description="Show stat difference between beg and end (unix timestamps)", guild_ids=cmdguilds)
-async def delta(ctx, beg: discord.Option(float, "beg", required = True), end: discord.Option(float, "end", required = True), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+async def delta(ctx, beg: discord.Option(float, "beg", required = True), end: discord.Option(float, "end", required = True), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname), season: discord.Option(str, "season", choices=seasonlist, required=False)):
     await ctx.defer(ephemeral=False)
-    season = getSeason()
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    seasonN = seasonNmap[season]
     plid = None
     if playername == None:
         plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
@@ -252,12 +275,16 @@ async def delta(ctx, beg: discord.Option(float, "beg", required = True), end: di
             await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
             return
         plid = plid["b2plid"]
-    await deltastat(ctx, season, playername, plid, beg, end)
+    await deltastat(ctx, season, seasonN, playername, plid, beg, end)
 
 @bot.slash_command(name="seasonal", description="Show stats for this season", guild_ids=cmdguilds)
-async def seasonal(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+async def seasonal(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname), season: discord.Option(str, "season", choices=seasonlist, required=False)):
     await ctx.defer(ephemeral=False)
-    season = getSeason()
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    seasonN = seasonNmap[season]
     plid = None
     if playername == None:
         plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
@@ -266,7 +293,7 @@ async def seasonal(ctx, playername: discord.Option(str, "playername", required =
             return
         plid = plid["b2plid"]
     else:
-        plid = await choosePlayer(ctx, season, playername)
+        plid = await choosePlayer(ctx, season, seasonN, playername)
     if plid == None:
         return
     old = mongoclient['b2']['players'].find_one({'plid': plid, 'season': season}, sort=[('date', 1)])
@@ -275,12 +302,22 @@ async def seasonal(ctx, playername: discord.Option(str, "playername", required =
         return
     end = time.time()
     beg = time.mktime(old["date"].timetuple()) + old['date'].microsecond/1000000
-    await deltastat(ctx, season, playername, plid, beg, end)
+    await deltastat(ctx, season, seasonN, playername, plid, beg, end)
 
 @bot.slash_command(name="vs", description="Show wins and losses against another player", guild_ids=cmdguilds)
-async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autocomplete=autocompletePname_oponent), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autocomplete=autocompletePname_oponent), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname), season: discord.Option(str, "season", choices=seasonlist, required=False), ndaily: discord.Option(int, "n last days are taken into consideration", required=False)):
     await ctx.defer(ephemeral=False)
-    season = getSeason()
+    # "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}
+    seasonNull = False
+    cutoffdate = 1000
+    if (season == None) and (not ndaily == None):
+        seasonNull = True
+        cutoffdate = time.time()-24*3600*ndaily
+    if season == None or seasonNull:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    seasonN = seasonNmap[season]
     plid = None
     if playername == None:
         plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
@@ -289,28 +326,46 @@ async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autoc
             return
         plid = plid["b2plid"]
     else:
-        plid = await choosePlayer(ctx, season, playername)
-    plido = await choosePlayer(ctx, season, oponent)
-    draws = list(mongoclient["b2"]["matches"].aggregate([
-        {"$match": {"season": season, "winner": "draw", "loser": "draw", "$or": [{"$and": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plido}]}, {"$and": [{"body.playerRight.profileURL": plido}, {"body.playerLeft.profileURL": plid}]}]}},
-        {"$group": {"_id": 1, "dd": {"$sum": 1}}}
-    ]))
+        plid = await choosePlayer(ctx, season, seasonN, playername)
+    plido = await choosePlayer(ctx, season, seasonN, oponent)
+    if seasonNull:
+        draws = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"winner": "draw", "loser": "draw", "$or": [{"$and": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plido}]}, {"$and": [{"body.playerRight.profileURL": plido}, {"body.playerLeft.profileURL": plid}]}], "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "dd": {"$sum": 1}}}
+        ]))
+    else:
+        draws = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"season": season, "winner": "draw", "loser": "draw", "$or": [{"$and": [{"body.playerRight.profileURL": plid}, {"body.playerLeft.profileURL": plido}]}, {"$and": [{"body.playerRight.profileURL": plido}, {"body.playerLeft.profileURL": plid}]}], "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "dd": {"$sum": 1}}}
+        ]))
     if draws == []:
         draws = 0
     else:
         draws = draws[0]["dd"]
-    wins = list(mongoclient["b2"]["matches"].aggregate([
-        {"$match": {"season": season, "winner": plid, "loser": plido}},
-        {"$group": {"_id": 1, "win": {"$sum": 1}}}
-    ]))
+    if seasonNull:
+        wins = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"winner": plid, "loser": plido, "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "win": {"$sum": 1}}}
+        ]))
+    else:
+        wins = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"season": season, "winner": plid, "loser": plido, "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "win": {"$sum": 1}}}
+        ]))
     if wins == []:
         wins = 0
     else:
         wins = wins[0]["win"]
-    winso = list(mongoclient["b2"]["matches"].aggregate([
-        {"$match": {"season": season, "winner": plido, "loser": plid}},
-        {"$group": {"_id": 1, "win": {"$sum": 1}}}
-    ]))
+    if seasonNull:
+        winso = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"winner": plido, "loser": plid, "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "win": {"$sum": 1}}}
+        ]))
+    else:
+        winso = list(mongoclient["b2"]["matches"].aggregate([
+            {"$match": {"season": season, "winner": plido, "loser": plid, "date": {"$gte": datetime.datetime.utcfromtimestamp(cutoffdate)}}},
+            {"$group": {"_id": 1, "win": {"$sum": 1}}}
+        ]))
     if winso == []:
         winso = 0
     else:
@@ -322,22 +377,33 @@ async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autoc
         await ctx.followup.send(f"Error occured while getting a leaderboard (wait a few minutes and try again)")
         return None
     lbsize = lb["lbsize"]
-    im = imagegen.genVs(profile, profileo, wins, winso, draws, lbsize, getSeasonN())
+    im = imagegen.genVs(profile, profileo, wins, winso, draws, lbsize, seasonN)
     with io.BytesIO() as imbytes:
         im.save(imbytes, 'PNG')
         imbytes.seek(0)
-        await ctx.interaction.edit_original_response(content=f"Wins/losses for season {getSeasonN()}",
+        msgtext = ""
+        if seasonNull:
+            msgtext = f"Wins/losses for the last {ndaily} days"
+        elif not ndaily == None:
+            msgtext = f"Wins/losses for season {seasonN} for the last {ndaily} days"
+        else:
+            msgtext = f"Wins/losses for season {seasonN}"
+        await ctx.interaction.edit_original_response(content=msgtext,
             file=discord.File(fp=imbytes, filename='image.png'))
         return True
 
 @bot.slash_command(name="lb", description="", guild_ids=cmdguilds)
-async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'losses', 'winrate', 'w/l', 'playtime', 'games played'], required=True), min_games: discord.Option(int, "min games", required=False), min_score: discord.Option(int, "min score", required=False)):
+async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'losses', 'winrate', 'w/l', 'playtime', 'games played'], required=True), min_games: discord.Option(int, "min games", required=False), min_score: discord.Option(int, "min score", required=False), season: discord.Option(str, "season", choices=seasonlist, required=False)):
     await ctx.defer()
     if min_games == None:
         min_games = 0
     if min_score == None:
         min_score = -2
-    season = getSeason()
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    seasonN = seasonNmap[season]
     lb = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
     if lb == None:
         await ctx.followup.send(f"Error occured while getting a leaderboard (wait a few minutes and try again)")
@@ -361,7 +427,7 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
     if len(lblist) == 0:
         await ctx.interaction.edit_original_response(content=f"The selected leaderboard ({mode} with {min_games} min games) is empty, you can try selecting lower min games")
         return
-    view = LbView(ctx, lblist, lbsize, mode, getSeasonN(), 8, min_games, min_score)
+    view = LbView(ctx, lblist, lbsize, mode, seasonN, 8, min_games, min_score)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
@@ -370,7 +436,7 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
 async def link(ctx, playername: discord.Option(str, "playername", required = True, autocomplete=autocompletePname)):
     await ctx.defer(ephemeral=True)
     season = getSeason()
-    plid = await choosePlayer(ctx, season, playername)
+    plid = await choosePlayer(ctx, season, getSeasonN(), playername)
     if plid == None:
         return;
     if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None:
@@ -412,7 +478,7 @@ async def b2lol_link(ctx, playername: discord.Option(str, "playername", required
             return
         plid = plid["b2plid"]
     else:
-        plid = await choosePlayer(ctx, season, playername)
+        plid = await choosePlayer(ctx, season, getSeasonN(), playername)
     await ctx.interaction.edit_original_response(content=f"https://b2.lol/playerInfo/playerInfo.html?{plid}")
 
 @bot.slash_command(name="rpr", description="render profile image", guild_ids=cmdguilds)
@@ -426,7 +492,7 @@ async def rpr(ctx, playername: discord.Option(str, "playername", required = Fals
             return
         plid = plid["b2plid"]
     else:
-        plid = await choosePlayer(ctx, season, playername)
+        plid = await choosePlayer(ctx, season, getSeasonN(), playername)
     lb = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
     if lb == None:
         await ctx.followup.send(f"Error occured while getting a leaderboard (wait a few minutes and try again)")

@@ -66,6 +66,6 @@ except NameError:
     im = im.resize((1902, 958), Image.Resampling.LANCZOS)
     img_cache["star_background"] = im
     im = Image.open(os.getenv("IMG_DIR")+"star_background.png")
-    im = im.resize((2252+72+45, 1158+68+40), Image.Resampling.LANCZOS)
-    im = im.crop((0, 0, 2252+72+45, 484))
+    im = im.resize((2369, 1266), Image.Resampling.LANCZOS)
+    im = im.crop((0, 0, 2369, 484))
     img_cache["star_background_horizontal"] = im
