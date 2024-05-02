@@ -4,6 +4,7 @@ import os
 import discord
 import pymongo
 import datetime
+import zoneinfo
 import cProfile, pstats, io, tracemalloc
 
 from dotenv import load_dotenv
@@ -15,6 +16,8 @@ from playerspecifier import PlayerChooserView, PlayerChooserViewScroll, LbView
 
 if __name__ == "__main__":
     load_dotenv()
+    #seasonmap = {'lpgvhtjw': 'lpgvhtjw', 'Season 17': 'lrq7y3q3', 'Season 18': 'lteij7gk'}
+    #seasonNmap = {'lpgvhtjw':16, 'lrq7y3q3': 17, 'lteij7gk': 18}
     seasonmap = {'Season 17': 'lrq7y3q3', 'Season 18': 'lteij7gk'}
     seasonNmap = {'lrq7y3q3': 17, 'lteij7gk': 18}
     seasonlist = list(seasonmap.keys())
@@ -197,6 +200,14 @@ async def autocompletePname(ctx: discord.AutocompleteContext):
             matched.append(i)
     return matched
 
+async def autocompleteTimezone(ctx: discord.AutocompleteContext):
+    possible = zoneinfo.available_timezones()
+    matched = []
+    for i in possible:
+        if ctx.options["timezone"].lower() in i.lower() and len(matched) < 25:
+            matched.append(i)
+    return matched
+
 async def autocompletePname_oponent(ctx: discord.AutocompleteContext):
     try:
         season = ctx.options["season"]
@@ -213,7 +224,7 @@ async def autocompletePname_oponent(ctx: discord.AutocompleteContext):
             matched.append(i)
     return matched
 
-@bot.slash_command(name="ndaily", description="Show stat difference between now and n days ago (n dosen't need to be integer)", guild_ids=cmdguilds)
+@bot.slash_command(name="ndaily", description="Show stat difference between now and n days (n*24h) ago (n dosen't need to be integer)", guild_ids=cmdguilds)
 async def ndaily(ctx, n: discord.Option(float, "n", required = True), playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
     await ctx.defer(ephemeral=False)
     season = getSeason()
@@ -228,6 +239,7 @@ async def ndaily(ctx, n: discord.Option(float, "n", required = True), playername
     beg = end - 60*60*24*n
     await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
 
+'''
 @bot.slash_command(name="daily", description="Show stat difference between now and one day ago", guild_ids=cmdguilds)
 async def daily(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
     await ctx.defer(ephemeral=False)
@@ -240,8 +252,44 @@ async def daily(ctx, playername: discord.Option(str, "playername", required = Fa
             return
         plid = plid["b2plid"]
     end = time.time()
-    #beg = time.time()
     beg = end - 60*60*24
+    await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
+'''
+
+@bot.slash_command(name="24h", description="Show stat difference between now and one day (24h) ago", guild_ids=cmdguilds)
+async def daily24h(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+    await ctx.defer(ephemeral=False)
+    season = getSeason()
+    plid = None
+    if playername == None:
+        plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
+        if plid == None:
+            await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
+            return
+        plid = plid["b2plid"]
+    end = time.time()
+    beg = end - 60*60*24
+    await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
+
+@bot.slash_command(name="daily", description="Show stat difference between now and the last reset time point (set it with /link)", guild_ids=cmdguilds)
+async def daily(ctx, playername: discord.Option(str, "playername", required = False, autocomplete=autocompletePname)):
+    await ctx.defer(ephemeral=False)
+    season = getSeason()
+    plid = None
+    if playername == None:
+        plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
+        if plid == None:
+            await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
+            return
+        plid = plid["b2plid"]
+    playertz = mongoclient["dc"]["tz"].find_one({"dcid": ctx.author.id})
+    if playertz == None:
+        await ctx.followup.send("You need to provide your reset time details through /link")
+        return
+    end = time.time()
+    beg = midnight=(datetime.datetime.now(zoneinfo.ZoneInfo(playertz['tz']))).replace(hour=playertz['rh'], minute=0, second=0, microsecond=0).astimezone(datetime.timezone.utc).astimezone(datetime.timezone.utc).timestamp()
+    if beg > time.time():
+        beg -= 60*60*24
     await deltastat(ctx, season, getSeasonN(), playername, plid, beg, end)
 
 @bot.slash_command(name="weekly", description="Show stat difference between now and one week ago", guild_ids=cmdguilds)
@@ -433,35 +481,58 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
         await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
 
 @bot.slash_command(name="link", description="Links B2 account to discord so you can type less", guild_ids=cmdguilds)
-async def link(ctx, playername: discord.Option(str, "playername", required = True, autocomplete=autocompletePname)):
+async def link(ctx, playername: discord.Option(str, "playername", required=False, autocomplete=autocompletePname), timezone: discord.Option(str, "timezone", required=False, autocomplete=autocompleteTimezone), reset_hour: discord.Option(int, "reset hour (24h format, without minutes)", required=False)):
     await ctx.defer(ephemeral=True)
-    season = getSeason()
-    plid = await choosePlayer(ctx, season, getSeasonN(), playername)
-    if plid == None:
-        return;
-    if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None:
-        mongoclient["dc"]["links"].insert_one({"dcid": ctx.author.id, "b2plid": plid})
-    else:
-        mongoclient["dc"]["links"].update_one({"dcid": ctx.author.id}, {"$set": {"dcid": ctx.author.id, "b2plid": plid}})
+    if playername == None and timezone == None:
+        await ctx.followup.send("You need to provide some arguments for /link to make sense", ephemeral=True)
+    plid = None
+    midnight = None
+    if playername != None:
+        season = getSeason()
+        plid = await choosePlayer(ctx, season, getSeasonN(), playername)
+        if plid == None:
+            return
+        if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None:
+            mongoclient["dc"]["links"].insert_one({"dcid": ctx.author.id, "b2plid": plid})
+        else:
+            mongoclient["dc"]["links"].update_one({"dcid": ctx.author.id}, {"$set": {"dcid": ctx.author.id, "b2plid": plid}})
+    if timezone != None:
+        if not timezone in zoneinfo.available_timezones():
+            await ctx.followup.send("Invalid timezone, you must choose the timezone from the autocomplete list (it's case sensitive)", ephemeral=True)
+        else:
+            if reset_hour == None:
+                reset_hour = 0
+            reset_hour = reset_hour%24
+            if mongoclient["dc"]["tz"].find_one({"dcid": ctx.author.id}) == None:
+                mongoclient["dc"]["tz"].insert_one({"dcid": ctx.author.id, "tz": timezone, "rh": reset_hour})
+            else:
+                mongoclient["dc"]["tz"].update_one({"dcid": ctx.author.id}, {"$set": {"dcid": ctx.author.id, "tz": timezone, "rh": reset_hour}})
     # we send an 1x1 transparent image to replace the minilb
     bio = io.BytesIO()
     im = Image.new("RGBA", (1,1), (255, 255, 255, 0))
     im.save(bio, 'PNG')
     bio.seek(0)
-    if plid == mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})["b2plid"]:
-        await ctx.interaction.edit_original_response(content="You have been succesfully linked", file=discord.File(fp=bio, filename="empty.png"))
-    else:
-        await ctx.interaction.edit_original_response(content="Something went wrong while linking", file=discord.File(fp=bio, filename="empty.png"))
+    if plid != None:
+        if plid == mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})["b2plid"]:
+            await ctx.followup.send(content="You have been succesfully linked", file=discord.File(fp=bio, filename="empty.png"), ephemeral=True)
+        else:
+            await ctx.followup.send(content="Something went wrong while linking", file=discord.File(fp=bio, filename="empty.png"), ephemeral=True)
+    if timezone != None:
+        midnight=(datetime.datetime.now(zoneinfo.ZoneInfo(timezone))).replace(hour=reset_hour, minute=0, second=0, microsecond=0).astimezone(datetime.timezone.utc).astimezone(datetime.timezone.utc).timestamp()
+        if midnight > time.time():
+            midnight -= 60*60*24
+        await ctx.followup.send(f"Your reset time for /today has been set to <t:{int(midnight)}:t>", ephemeral=True)
 
 @bot.slash_command(name="unlink", description="Unlinks /link", guild_ids=cmdguilds)
 async def unlink(ctx):
     await ctx.defer(ephemeral=True)
-    if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None:
+    if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None and mongoclient["dc"]["tz"].find_one({"dcid": ctx.author.id}) == None:
         await ctx.interaction.edit_original_response(content="You aren't linked to begin with")
         return
     else:
         mongoclient["dc"]["links"].delete_one({"dcid": ctx.author.id})
-    if mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id}) == None:
+        mongoclient["dc"]["tz"].delete_one({"dcid": ctx.author.id})
+    if mongoclient["dc"]["links"].  find_one({"dcid": ctx.author.id}) == None and mongoclient["dc"]["tz"].find_one({"dcid": ctx.author.id}) == None:
         await ctx.interaction.edit_original_response(content="You have been succesfully unlinked")
     else:
         await ctx.interaction.edit_original_response(content="Something went wrong while unlinking")
