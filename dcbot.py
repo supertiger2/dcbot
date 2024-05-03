@@ -440,7 +440,7 @@ async def vs(ctx, oponent: discord.Option(str, "oponent", required = True, autoc
             file=discord.File(fp=imbytes, filename='image.png'))
         return True
 
-@bot.slash_command(name="lb", description="", guild_ids=cmdguilds)
+@bot.slash_command(name="lb", description="Shown leaderboards of selected stat", guild_ids=cmdguilds)
 async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'losses', 'winrate', 'w/l', 'playtime', 'games played'], required=True), min_games: discord.Option(int, "min games", required=False), min_score: discord.Option(int, "min score", required=False), season: discord.Option(str, "season", choices=seasonlist, required=False)):
     await ctx.defer()
     if min_games == None:
@@ -476,6 +476,49 @@ async def lb(ctx, mode: discord.Option(str, "type", choices=['score', 'wins', 'l
         await ctx.interaction.edit_original_response(content=f"The selected leaderboard ({mode} with {min_games} min games) is empty, you can try selecting lower min games")
         return
     view = LbView(ctx, lblist, lbsize, mode, seasonN, 8, min_games, min_score)
+    await view.init()
+    if await view.wait():
+        await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
+
+@bot.slash_command(name="vs_lb", description="Shows a leaderboard of who you won/lost agains the most", guild_ids=cmdguilds)
+async def lb(ctx, mode: discord.Option(str, "type", choices=['wins against player', 'losses against player'], required=True), playername: discord.Option(str, "playername", required=False, autocomplete=autocompletePname), season: discord.Option(str, "season", choices=seasonlist, required=False)):
+    await ctx.defer()
+    if season == None:
+        season = getSeason()
+    else:
+        season = seasonmap[season]
+    seasonN = seasonNmap[season]
+    if mode == "wins against player":
+        mode= "wins"
+    if mode == "losses against player":
+        mode = "losses"
+    plid = None
+    if playername == None:
+        plid = mongoclient["dc"]["links"].find_one({"dcid": ctx.author.id})
+        if plid == None:
+            await ctx.followup.send("You need to provide a playername as an input or link your discord accout to Battles 2 name (/link)")
+            return
+        plid = plid["b2plid"]
+    else:
+        plid = await choosePlayer(ctx, season, seasonN, playername)
+    if plid == None:
+        return
+    vsname = mongoclient['b2']['players'].find_one({'plid': plid, 'season': season}, sort=[('date', -1)])
+    if vsname == None:
+        vsname = "<no name found>"
+    else:
+        vsname = vsname['body']['displayName']
+    lb = mongoclient["b2"]["lb"].find_one({"season": season}, sort=[("date", -1)])
+    if lb == None:
+        await ctx.followup.send(f"Error occured while getting a leaderboard (wait a few minutes and try again)")
+        return None
+    lbsize = lb["lbsize"]
+    lblist = []
+    lblist = lbutil.getlbvs(mongoclient, season, mode, lb, plid)
+    if len(lblist) == 0:
+        await ctx.interaction.edit_original_response(content=f"The selected leaderboard is empty")
+        return
+    view = LbView(ctx, lblist, lbsize, f"{mode} against {vsname}", seasonN, 8, 1, 0)
     await view.init()
     if await view.wait():
         await ctx.interaction.edit_original_response(content=f"Timed out! [{view.infostring}]", view=None)
