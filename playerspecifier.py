@@ -24,12 +24,13 @@ class InputForm(Modal):
         self.plid = None
     async def callback(self, interaction):
         try:
-            val = int(self.children[0].value)
+            val = self.children[0].value
         except:
             await interaction.response.send_message("Provided input is not a valid number", ephemeral=True)
             return
         for i in self.lblist:
-            if i["place"] == val:
+            flagged = ('flagged' in i) and (i['flagged'])
+            if (flagged and (str(i['place'])+'*' == val)) or (not flagged and str(i["place"]) == val):
                 self.plid = i["plid"]
                 await interaction.response.defer()
                 return
@@ -61,7 +62,7 @@ class SearchInput(Modal):
         await interaction.response.defer()
 
 class LbViewCommon(View):
-    def __init__(self, ctx, lblist, lbsize, mode, seasonN, chunksize, mingames, minscore):
+    def __init__(self, ctx, lblist, lbsize, mode, namemode, seasonN, chunksize, mingames, minscore):
         super().__init__(timeout=600)
         self.ctx = ctx
         self.lblist = lblist
@@ -69,6 +70,7 @@ class LbViewCommon(View):
         self.lbsize = lbsize
         self.searchwarning = False
         self.mode = mode
+        self.namemode = namemode
         self.seasonN = seasonN
         self.mingames = mingames
         self.minscore = minscore
@@ -82,9 +84,9 @@ class LbViewCommon(View):
         await self.ctx.interaction.edit_original_response(view=self)
         if not imageIndex in self.imagecahe:
             if self.mode == "score":
-                timg = imagegen.genChooserLB(self.lbsplit[imageIndex], len(self.lbsplit[imageIndex]), self.seasonN)
+                timg = await imagegen.genChooserLB(self.lbsplit[imageIndex], self.lbsize, self.seasonN)
             else:
-                timg = imagegen.genMiniLB(self.lbsplit[imageIndex], self.mode)
+                timg = await imagegen.genMiniLB(self.lbsplit[imageIndex], self.mode)
                 timg.thumbnail((timg.size[0]//3, timg.size[1]//3), Image.Resampling.BICUBIC)
             self.imagecahe[imageIndex] = timg
         im = self.imagecahe[imageIndex]
@@ -192,12 +194,21 @@ class LbView(LbViewCommonScroll):
         min_string = '('
         if self.mingames > 0:
             min_string += f'{self.mingames} min games, '
-        if self.minscore > -2:
+        if self.minscore > 0:
             min_string += f'{self.minscore} min score, '
         if min_string == '(':
             min_string = ''
         else:
             min_string = min_string[:-2]+') '
-        self.infostring = f"{self.mode} leaderboard {min_string}for season {self.seasonN} (with {len(self.lblist)} players)"
+        seasonstring = ""
+        if self.seasonN != None:
+            seasonstring = f"for season {self.seasonN} "
+        self.infostring = f"{self.namemode} leaderboard {min_string}(with {len(self.lblist)} players)"
+        await self.ctx.interaction.edit_original_response(content=self.infostring)
+
+class NamehistView(LbViewCommonScroll):
+    async def init(self):
+        await self.updateImage(0)
+        self.infostring = f"{self.namemode} name history"
         await self.ctx.interaction.edit_original_response(content=self.infostring)
 

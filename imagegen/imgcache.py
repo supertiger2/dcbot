@@ -3,14 +3,23 @@ import os
 import requests
 
 from dotenv import load_dotenv
+from io import BytesIO
 
 from PIL import Image
 
-def getimg(url, itype):
+async def getimg(url, itype):
     try:
         if not url in img_cache:
+            if "animated" in url:
+                if url in unanimateMap:
+                    url = unanimateMap[url]
+                else:
+                    if itype == "banner":
+                        return img_cache["unknown_banner"].copy()
+                    if itype == "pfp":
+                        return img_cache["unknown_pfp"].copy()
             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36'}
-            im = Image.open(requests.get(url, headers=headers, stream=True).raw)
+            im = Image.open(BytesIO(requests.get(url, headers=headers).content))
             if itype == "border":
                 res = Image.new("RGBA", (1422, 202), (255, 255, 255, 0))
                 im = im.resize((444, 202), Image.Resampling.BICUBIC)
@@ -40,14 +49,14 @@ def getimg(url, itype):
                     im = Image.composite(im, trans, img_cache["pfp_mask"])
             im.convert("RGBA")
             img_cache[url] = im
-        return img_cache[url]
+        return img_cache[url].copy()
     except:
         if itype == "banner":
-            return img_cache["unknown_banner"]
+            return img_cache["unknown_banner"].copy()
         elif itype == "pfp":
-            return img_cache["unknown_pfp"]
+            return img_cache["unknown_pfp"].copy()
         tmp = Image.new("RGBA", (1, 1), (255, 255, 255, 0))
-        return tmp
+        return tmp.copy()
 
 global img_cache
 try:
@@ -66,6 +75,17 @@ except NameError:
     im = im.resize((1902, 958), Image.Resampling.LANCZOS)
     img_cache["star_background"] = im
     im = Image.open(os.getenv("IMG_DIR")+"star_background.png")
+    im = im.resize((2599, 1309), Image.Resampling.LANCZOS)
+    im = im.crop((0, 0, 1902, 1309))
+    img_cache["star_background_extended"] = im
+    im = Image.open(os.getenv("IMG_DIR")+"star_background.png")
     im = im.resize((2369, 1266), Image.Resampling.LANCZOS)
     im = im.crop((0, 0, 2369, 484))
     img_cache["star_background_horizontal"] = im
+    unanimateMap = {
+        'https://static-api.nkstatic.com/appdocs/4/assets/opendata/8a43d43d67400d4e9c1b7feb76fe3309_rooftop_run_animated_banner.png': 'https://static-api.nkstatic.com/appdocs/4/assets/opendata/b8ca60a813a29f416057249ec11a9d2a_rooftop_run_banner.png',
+        'https://static-api.nkstatic.com/appdocs/4/assets/opendata/d743b40e9e4a2fcfde20a0f9bddc3c95_avatar_north_by_north_ace_animated.png': 'https://static-api.nkstatic.com/appdocs/4/assets/opendata/c466790335f2794e54fbc1aae6dacc81_avatar_north_by_north_ace.png',
+        'https://static-api.nkstatic.com/appdocs/4/assets/opendata/14b8354275f834b46edf882b2336308b_avatar_waterskiing_animated.png': 'https://static-api.nkstatic.com/appdocs/4/assets/opendata/1edf44e3608c4ee922441f375c3c6baa_avatar_waterskiing.png',
+        'https://static-api.nkstatic.com/appdocs/4/assets/opendata/2fe5562a1b0343032706e12950e1a235_banner_openingceremony_animated.png': 'https://static-api.nkstatic.com/appdocs/4/assets/opendata/326205b8b59a426d3c217f62b37afaaf_banner_openingceremony.png',
+        'https://static-api.nkstatic.com/appdocs/4/assets/opendata/314898bc2154dd5ca6193d5278b2db5c_banner_thunderoftheguns_animated.png': 'https://static-api.nkstatic.com/appdocs/4/assets/opendata/7fd7e4a06750ecff0c5acc3c6bf2ca29_banner_thunderoftheguns.png'
+    }

@@ -14,7 +14,7 @@ def getMedalUrl(place, total):
         return "https://static-api.nkstatic.com/appdocs/4/assets/opendata/1a93a5d608121e09dcbc92454d9f9647_season_medal_hom_top50place.png"
     if place <= 100:
         return "https://static-api.nkstatic.com/appdocs/4/assets/opendata/65e7f5fab83fa6ab1480c65ed35f6df3_season_medal_hom_top100.png"
-    percent = place/total*100
+    percent = (place*100)//total
     if percent <= 10:
         return "https://static-api.nkstatic.com/appdocs/4/assets/opendata/c313210cdf25dc67c7de4167b46bae0a_season_medal_hom_top10perc.png"
     if percent <= 25:
