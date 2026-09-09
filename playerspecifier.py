@@ -17,10 +17,11 @@ def splitlb(lblist, chunksize):
     return res
 
 class InputForm(Modal):
-    def __init__(self, lblist):
+    def __init__(self, lblist, lbmode):
         super().__init__(title="Choose the player")
         self.add_item(InputText(label="Place", placeholder="number", required=True, style=discord.InputTextStyle.short))
         self.lblist = lblist
+        self.lbmode = lbmode
         self.plid = None
     async def callback(self, interaction):
         try:
@@ -29,8 +30,8 @@ class InputForm(Modal):
             await interaction.response.send_message("Provided input is not a valid number", ephemeral=True)
             return
         for i in self.lblist:
-            flagged = ('flagged' in i) and (i['flagged'])
-            if (flagged and (str(i['place'])+'*' == val)) or (not flagged and str(i["place"]) == val):
+            flagged = ('flagged' in i) and (i['flagged']) and (self.lbmode == "score") # on non-score LBs we don't render real places so adding "*" for flagged doesn't make sense
+            if (flagged and (str(i['__lbplace'])+'*' == val)) or (not flagged and str(i["__lbplace"]) == val):
                 self.plid = i["plid"]
                 await interaction.response.defer()
                 return
@@ -62,7 +63,7 @@ class SearchInput(Modal):
         await interaction.response.defer()
 
 class LbViewCommon(View):
-    def __init__(self, ctx, lblist, lbsize, mode, namemode, seasonN, chunksize, mingames, minscore):
+    def __init__(self, ctx, lblist, lbsize, mode, namemode, seasonN, chunksize, mingames, minscore, maxscore):
         super().__init__(timeout=600)
         self.ctx = ctx
         self.lblist = lblist
@@ -74,26 +75,28 @@ class LbViewCommon(View):
         self.seasonN = seasonN
         self.mingames = mingames
         self.minscore = minscore
+        self.maxscore = maxscore
         self.chunksize = chunksize
         self.lbsplit = splitlb(lblist, chunksize)
         self.currentIndex = 0
-        self.imagecahe = {}
+        #self.imagecahe = {}
     async def updateImage(self, imageIndex):
         for child in self.children:
             child.disabled = True
         await self.ctx.interaction.edit_original_response(view=self)
-        if not imageIndex in self.imagecahe:
+        if True: #not imageIndex in self.imagecahe:
             if self.mode == "score":
                 timg = await imagegen.genChooserLB(self.lbsplit[imageIndex], self.lbsize, self.seasonN)
             else:
                 timg = await imagegen.genMiniLB(self.lbsplit[imageIndex], self.mode)
                 timg.thumbnail((timg.size[0]//3, timg.size[1]//3), Image.Resampling.BICUBIC)
-            self.imagecahe[imageIndex] = timg
-        im = self.imagecahe[imageIndex]
+            #self.imagecahe[imageIndex] = timg
+        im = timg
+        #im = self.imagecahe[imageIndex]
         with io.BytesIO() as imbytes:
-            im.save(imbytes, 'PNG', compress_level=2)
+            im.save(imbytes, 'WEBP', quality=90, exact=True)
             imbytes.seek(0)
-            await self.ctx.interaction.edit_original_response(file=discord.File(fp=imbytes, filename='image.png'))
+            await self.ctx.interaction.edit_original_response(file=discord.File(fp=imbytes, filename='image.webp'))
         for child in self.children:
             if type(child) == discord.ui.Button and child.custom_id == "left" and self.currentIndex==0:
                 child.disabled = True
@@ -166,7 +169,7 @@ class PlayerChooserView(LbViewCommon):
         await self.ctx.interaction.edit_original_response(content="Input the place of the player you want to choose, possible values are shown on the image.")
     @discord.ui.button(label="Choose", row=1, style=discord.ButtonStyle.primary)
     async def letChoose(self, button, interaction):
-        inputmodal = InputForm(self.lblist)
+        inputmodal = InputForm(self.lblist, self.mode)
         await interaction.response.send_modal(inputmodal)
         await inputmodal.wait()
         if inputmodal.plid != None:
@@ -180,7 +183,7 @@ class PlayerChooserViewScroll(LbViewCommonScroll):
         await self.ctx.interaction.edit_original_response(content="Input the place of the player you want to choose, possible values are shown on the image.")
     @discord.ui.button(label="Choose", row=1, style=discord.ButtonStyle.primary)
     async def letChoose(self, button, interaction):
-        inputmodal = InputForm(self.lblist)
+        inputmodal = InputForm(self.lblist, self.mode)
         await interaction.response.send_modal(inputmodal)
         await inputmodal.wait()
         if inputmodal.plid != None:
@@ -196,6 +199,8 @@ class LbView(LbViewCommonScroll):
             min_string += f'{self.mingames} min games, '
         if self.minscore > 0:
             min_string += f'{self.minscore} min score, '
+        if self.maxscore < 2147483647:
+            min_string += f'{self.maxscore} max score, '
         if min_string == '(':
             min_string = ''
         else:

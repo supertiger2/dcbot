@@ -44,9 +44,9 @@ def time_round(time):
     time = time//24
     day = time
     if day > 0:
-        return f"{day}d {hr}h"
+        return f"{day:.0f}d {hr:.0f}h"
     if hr > 0:
-        return f"{hr}h {min}m"
+        return f"{hr:.0f}h {min:.0f}m"
     if min > 0:
-        return f"{min}m {sec}s"
-    return f"{sec}s"
+        return f"{min:.0f}m {sec:.0f}s"
+    return f"{sec:.0f}s"

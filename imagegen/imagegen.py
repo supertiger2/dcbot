@@ -97,10 +97,12 @@ async def genLBEImage(profile, lbsize, season):
     if "flagged" in profile and profile["flagged"]:
         placecolor = (255, 0, 0, 255)
         placestr += "*"
+    if "hidescore" in profile and profile["hidescore"]:
+        placecolor = (255, 255, 0, 255)
     img = sctext_ncx(img, (166, 0, 362, 201), "font.ttf", placestr, 150, placecolor, 8, (0, 0, 0))
     return img
 
-async def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, playtime, lbsize, season):
+async def genDeltaStatImage(oldstat, newstat, useDeltasNotMatches, winsR, lossesR, drawsR, elodecay, playtime, lbsize, season):
     img = await imgcache.getimg("star_background", "misc")
     profimg = await genProfileImage(newstat)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
@@ -109,6 +111,11 @@ async def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, 
     # wins losses unused here, as counting from matches has much smaller delay
     dwins =  newstat["body"]["rankedStats"]["wins"]-oldstat["body"]["rankedStats"]["wins"]
     dlosses = newstat["body"]["rankedStats"]["losses"]-oldstat["body"]["rankedStats"]["losses"]
+    ddraws = newstat["body"]["rankedStats"]["draws"]-oldstat["body"]["rankedStats"]["draws"]
+    if useDeltasNotMatches:
+        winsR = dwins
+        lossesR = dlosses
+        drawsR = ddraws
     img = sctext(img, (65, 315, 496, 373), "font.ttf", "Elo gain:", 62, (255, 255, 255), 6, (0, 0, 0))
     # render elo with the triangle
     delo = " "+str(abs(newstat["score"]-oldstat["score"]))
@@ -147,7 +154,7 @@ async def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, 
     winrate = 0
     wrc = (255, 255, 255)
     if (winsR+lossesR+drawsR) != 0:
-        winrate = winsR/(winsR+lossesR+drawsR)
+        winrate = winsR/(winsR+lossesR)
         if winrate > 0.5:
             wrc = (160, 255, 160)
         elif winrate < 0.5:
@@ -158,10 +165,10 @@ async def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, 
     img = sctext(img, (1021, 315, 1286, 373), "font.ttf", "Losses:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (1021, 401, 1286, 538), "font.ttf", str(lossesR), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext(img, (1441, 315, 1731, 373), "font.ttf", "WR:", 62, (255, 255, 255), 6, (0, 0, 0))
-    img = sctext(img, (1461, 401, 1771, 538), "font.ttf", str(int(round(winrate*100, 1)))+'%', 180, wrc, 9, (0, 0, 0))
-    img = sctext(img, (1441, 555, 1731, 615), "font.ttf", "W/L: "+str(round(winsR/max(1, lossesR), 2)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (550, 555, 953, 615), "font.ttf", "Avg gain: "+str(round(avgain, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (952, 555, 1355, 615), "font.ttf", "Avg loss: "+str(round(avloss, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (1461, 401, 1771, 538), "font.ttf", f"{winrate*100:.0f}%", 180, wrc, 9, (0, 0, 0))
+    img = sctext(img, (1441, 555, 1731, 615), "font.ttf", f"W/L: {winsR/max(1, lossesR):.2f}", 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (550, 555, 953, 615), "font.ttf", f"Avg gain: {avgain:.1f}", 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (952, 555, 1355, 615), "font.ttf", f"Avg loss: {avloss:.1f}", 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (97, 666, 608, 727), "font.ttf", "Playtime:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (97, 755, 608, 892), "font.ttf", time_round(playtime), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext(img, (850, 666, 1717, 727), "font.ttf", "Places gain:", 62, (255, 255, 255), 6, (0, 0, 0))
@@ -171,7 +178,7 @@ async def genDeltaStatImage(oldstat, newstat, winsR, lossesR, drawsR, elodecay, 
     img = sctext(img, (850, 755, 1717, 892), "font.ttf", "#"+str(oldplace)+u" 🡆 #"+str(newstat["place"]), 180, (255, 255, 255), 9, (0, 0, 0))
     return img
 
-async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, drawsRFull, elodecay, peakelo, playtime, lbsize, season):
+async def genDeltaStatImageExtended(oldstat, newstat, useDeltasNotMatches, winsR, lossesR, drawsR, drawsRFull, elodecay, peakelo, playtime, lbsize, season):
     img = await imgcache.getimg("star_background_extended", "misc")
     profimg = await genProfileImage(newstat)
     tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
@@ -180,6 +187,11 @@ async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, dr
     # wins losses unused here, as counting from matches has much smaller delay
     dwins =  newstat["body"]["rankedStats"]["wins"]-oldstat["body"]["rankedStats"]["wins"]
     dlosses = newstat["body"]["rankedStats"]["losses"]-oldstat["body"]["rankedStats"]["losses"]
+    ddraws = newstat["body"]["rankedStats"]["draws"]-oldstat["body"]["rankedStats"]["draws"]
+    if useDeltasNotMatches:
+        winsR = dwins
+        lossesR = dlosses
+        drawsR = ddraws
     img = sctext(img, (65, 666, 496, 726), "font.ttf", "Elo gain:", 62, (255, 255, 255), 6, (0, 0, 0))
     # render elo with the triangle
     delo = " "+str(abs(newstat["score"]-oldstat["score"]))
@@ -218,7 +230,7 @@ async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, dr
     winrate = 0
     wrc = (255, 255, 255)
     if (winsR+lossesR+drawsR) != 0:
-        winrate = winsR/(winsR+lossesR+drawsR)
+        winrate = winsR/(winsR+lossesR)
         if winrate > 0.5:
             wrc = (160, 255, 160)
         elif winrate < 0.5:
@@ -226,16 +238,16 @@ async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, dr
     # the rest
     img = sctext(img, (205, 315, 470, 373), "font.ttf", "Wins:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (205, 401, 470, 538), "font.ttf", str(winsR), 180, (255, 255, 255), 9, (0, 0, 0))
-    img = sctext(img, (136, 555, 539, 615), "font.ttf", "Avg gain: "+str(round(avgain, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (619, 315, 884, 373), "font.ttf", "Losses:", 62, (255, 255, 255), 6, (0, 0, 0))
-    img = sctext(img, (619, 401, 884, 538), "font.ttf", str(lossesR), 180, (255, 255, 255), 9, (0, 0, 0))
-    img = sctext(img, (550, 555, 953, 615), "font.ttf", "Avg loss: "+str(round(avloss, 1)), 54, (255, 255, 255), 5, (0, 0, 0))
-    img = sctext(img, (1021, 315, 1286, 373), "font.ttf", "Draws:", 62, (255, 255, 255), 6, (0, 0, 0))
-    img = sctext(img, (1021, 401, 1286, 538), "font.ttf", str(drawsR), 180, (255, 255, 255), 9, (0, 0, 0))
-    img = sctext(img, (952, 555, 1355, 615), "font.ttf", "Lobby DCs: "+str(drawsR-drawsRFull), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (136, 555, 539, 615), "font.ttf", f"Avg gain: {avgain:.1f}", 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (1021, 315, 1286, 373), "font.ttf", "Losses:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (1021, 401, 1286, 538), "font.ttf", str(lossesR), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (952, 555, 1355, 615), "font.ttf", f"Avg loss: {avloss:.1f}", 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (619, 315, 884, 373), "font.ttf", "Draws:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (619, 401, 884, 538), "font.ttf", str(drawsR), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (550, 555, 953, 615), "font.ttf", "Lobby DCs: "+str(drawsR-drawsRFull), 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (1441, 315, 1731, 373), "font.ttf", "WR:", 62, (255, 255, 255), 6, (0, 0, 0))
-    img = sctext(img, (1461, 401, 1771, 538), "font.ttf", str(int(round(winrate*100, 1)))+'%', 180, wrc, 9, (0, 0, 0))
-    img = sctext(img, (1441, 555, 1731, 615), "font.ttf", "W/L: "+str(round(winsR/max(1, lossesR), 2)), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (1461, 401, 1771, 538), "font.ttf", f"{winrate*100:.0f}%", 180, wrc, 9, (0, 0, 0))
+    img = sctext(img, (1441, 555, 1731, 615), "font.ttf", f"W/L: {winsR/max(1, lossesR):.1f}", 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (645, 666, 1076, 724), "font.ttf", "Peak Elo:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (685, 752, 1056, 889), "font.ttf", str(peakelo), 180, (255, 255, 255), 9, (0, 0, 0))
     if peakelo == newstat["score"]:
@@ -243,7 +255,8 @@ async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, dr
     else:
         img = sctext(img, (645, 906, 1076, 966), "font.ttf", str(peakelo-newstat["score"])+" below peak", 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (1248, 666, 1759, 724), "font.ttf", "Avg match len: ", 62, (255, 255, 255), 6, (0, 0, 0))
-    img = sctext(img, (1248, 752, 1759, 889), "font.ttf", time_round(int(round(playtime/max(1,(winsR+lossesR+drawsR)), 0))), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (1248, 752, 1759, 889), "font.ttf", time_round(playtime/max(1,(winsR+lossesR+drawsR))), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (1248, 906, 1759, 966), "font.ttf", str(round((newstat["score"]-oldstat["score"])/(max(1,playtime)/60), 1))+" elo/PT-minute", 54, (255, 255, 255), 5, (0, 0, 0))
     img = sctext(img, (97, 1017, 608, 1078), "font.ttf", "Playtime:", 62, (255, 255, 255), 6, (0, 0, 0))
     img = sctext(img, (97, 1106, 608, 1243), "font.ttf", time_round(playtime), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext(img, (850, 1017, 1717, 1078), "font.ttf", "Places gain:", 62, (255, 255, 255), 6, (0, 0, 0))
@@ -251,6 +264,38 @@ async def genDeltaStatImageExtended(oldstat, newstat, winsR, lossesR, drawsR, dr
     if oldstat['place'] == 0:
         oldplace = "?"
     img = sctext(img, (850, 1106, 1717, 1243), "font.ttf", "#"+str(oldplace)+u" 🡆 #"+str(newstat["place"]), 180, (255, 255, 255), 9, (0, 0, 0))
+    return img
+
+async def genMatchStatImage(profile, winsR, lossesR, drawsR, drawsRFull, playtime, lbsize, season):
+    img = await imgcache.getimg("star_background", "misc")
+    profimg = await genProfileImage(profile)
+    tmp = Image.new("RGBA", img.size, (255, 255, 255, 0))
+    tmp.paste(await genLBEImage(profile, lbsize, season), (26, 44))
+    img = Image.alpha_composite(img, tmp)
+    winrate = 0
+    wrc = (255, 255, 255)
+    if (winsR+lossesR+drawsR) != 0:
+        winrate = winsR/(winsR+lossesR)
+        if winrate > 0.5:
+            wrc = (160, 255, 160)
+        elif winrate < 0.5:
+            wrc = (255, 160, 160)
+    # the rest
+    img = sctext(img, (129, 315, 432, 373), "font.ttf", "Wins:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (129, 401, 432, 538), "font.ttf", str(winsR), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (983, 315, 1286, 373), "font.ttf", "Losses:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (983, 401, 1286, 538), "font.ttf", str(lossesR), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (581, 315, 846, 373), "font.ttf", "Draws:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (581, 401, 846, 538), "font.ttf", str(drawsR), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (512, 555, 915, 615), "font.ttf", "Lobby DCs: "+str(drawsR-drawsRFull), 54, (255, 255, 255), 5, (0, 0, 0))
+    img = sctext(img, (1441, 315, 1731, 373), "font.ttf", "WR:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (1461, 401, 1771, 538), "font.ttf", f"{winrate*100, 1:.1f}%", 180, wrc, 9, (0, 0, 0))
+    img = sctext(img, (1441, 555, 1731, 615), "font.ttf", f"W/L: {winsR/max(1, lossesR):.2f}", 54, (255, 255, 255), 5, (0, 0, 0))
+
+    img = sctext(img, (247, 666, 798, 727), "font.ttf", "Playtime:", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (247, 755, 798, 892), "font.ttf", time_round(playtime), 180, (255, 255, 255), 9, (0, 0, 0))
+    img = sctext(img, (1058, 666, 1609, 724), "font.ttf", "Avg match len: ", 62, (255, 255, 255), 6, (0, 0, 0))
+    img = sctext(img, (1058, 752, 1609, 889), "font.ttf", time_round(playtime/max(1,(winsR+lossesR+drawsR))), 180, (255, 255, 255), 9, (0, 0, 0))
     return img
 
 async def genVs(player, oponent, winsp, winso, draws, lbsize, season):
@@ -271,8 +316,8 @@ async def genVs(player, oponent, winsp, winso, draws, lbsize, season):
         wrcp = (255, 160, 160)
     img = sctext_ncx(img, (1929, 30, 2160, 232), "font.ttf", str(winsp), 180, (255, 255, 255), 9, (0, 0, 0))
     img = sctext_ncx(img, (1929, 252, 2160, 454), "font.ttf", str(winso), 180, (255, 255, 255), 9, (0, 0, 0))
-    img = sctext_ncx(img, (2182, 60, 2353, 130), "font.ttf", str(round(winsp/max(1, winsp+winso+draws)*100))+'%', 105, wrcp, 6, (0, 0, 0))
-    img = sctext_ncx(img, (2182, 343, 2353, 423), "font.ttf", str(round(winso/max(1, winsp+winso+draws)*100))+'%', 105, wrco, 6, (0, 0, 0))
+    img = sctext_ncx(img, (2182, 60, 2353, 130), "font.ttf", f"{winsp/max(1, winsp+winso+draws)*100:.0f}%", 105, wrcp, 6, (0, 0, 0))
+    img = sctext_ncx(img, (2182, 343, 2353, 423), "font.ttf", f"{winso/max(1, winsp+winso+draws)*100:.0f}%", 105, wrco, 6, (0, 0, 0))
     if draws > 0:
         img = sctext_ncx(img, (2175, 165, 2250, 319), "font.ttf", str(draws), 125, (255, 255, 255), 6, (0, 0, 0))
     return img
@@ -307,15 +352,21 @@ async def genMiniLB(lblist, mode):
         tmp.paste(await genProfileImage(i), (26+447, nexty))
         tmp = sctext(tmp, (36, nexty, 417, nexty+202), "font.ttf", '# '+str(i["__lbplace"]), 150, (255, 255, 255), 9, (0, 0, 0))
         if mode == 'winrate':
-            text = str(round(i["__lbprop"]*100))+'%'
+            text = f"{i["__lbprop"]*100:.0f}%"
+        elif mode == 'loserate':
+            text = f"{i["__lbprop"]*100:.0f}%"
         elif mode == 'w/l':
-            text = str(round(i["__lbprop"], 2))
+            text = f"{i["__lbprop"]:.2f}"
         elif mode == 'l/w':
-            text = str(round(i["__lbprop"], 2))
+            text = f"{i["__lbprop"]:.2f}"
         elif mode == 'playtime':
             text = time_round(i["__lbprop"])
         elif mode == 'avg match duration':
-            text = time_round(round(i["__lbprop"]))
+            text = time_round(i["__lbprop"])
+        elif mode == 'eloexp':
+            text = f"{i["__lbprop"]:.0f}"
+        elif mode == 'nukelb':
+            text = f"{i["__lbprop"]:.0f}"
         else:
             text = str(i["__lbprop"])
         tmp = sctext_ncx(tmp, (1936, nexty, 2252, nexty+202), "font.ttf", text, 180, (255, 255, 255), 9, (0, 0, 0))
